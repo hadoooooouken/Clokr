@@ -1,0 +1,511 @@
+<Window x:Class="Clokr.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:Clokr.Converters"
+        xmlns:models="clr-namespace:Clokr.Models"
+        Title="Clokr - CPU Frequency Manager for Hybrid Core Processors"
+        Width="840" Height="680"
+        MinWidth="800" MinHeight="660"
+        ResizeMode="CanMinimize"
+        WindowStartupLocation="CenterScreen"
+        Closing="Window_Closing"
+        StateChanged="Window_StateChanged">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:BoostModeDisplayConverter x:Key="BoostModeDisplayConverter"/>
+        <converters:PowerSourceConverter x:Key="PowerSourceConverter"/>
+
+        <SolidColorBrush x:Key="AccentBrush" Color="#60CDFF"/>
+        <SolidColorBrush x:Key="AccentDimBrush" Color="#3060CDFF"/>
+        <SolidColorBrush x:Key="SectionBorderBrush" Color="#30FFFFFF"/>
+        <SolidColorBrush x:Key="SectionBackgroundBrush" Color="#08FFFFFF"/>
+
+        <!-- Section card style -->
+        <Style x:Key="SectionCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SectionBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource SectionBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20,16"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+
+        <!-- Section header style -->
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+        </Style>
+
+        <!-- Label style -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Opacity" Value="0.85"/>
+        </Style>
+
+        <!-- Style for the +/- buttons inside frequency inputs -->
+        <Style x:Key="AdjustButton" TargetType="Button">
+            <Setter Property="Width" Value="26"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#30FFFFFF"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#50FFFFFF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Frequency TextBox style -->
+        <Style x:Key="FreqInput" TargetType="TextBox">
+            <Setter Property="Width" Value="130"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="MaxLength" Value="5"/>
+            <Setter Property="Background" Value="#15FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Button Grid.Column="0" Content="−" 
+                                        Style="{StaticResource AdjustButton}"
+                                        Margin="4,0,0,0"
+                                        Command="{Binding DataContext.DecrementFrequencyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Focusable="False"/>
+
+                                <ScrollViewer x:Name="PART_ContentHost" Grid.Column="1" 
+                                              VerticalAlignment="Center"
+                                              Margin="2,0"/>
+
+                                <Button Grid.Column="2" Content="+" 
+                                        Style="{StaticResource AdjustButton}"
+                                        Margin="0,0,4,0"
+                                        Command="{Binding DataContext.IncrementFrequencyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Focusable="False"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="true">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#50FFFFFF"/>
+                                <Setter TargetName="border" Property="Background" Value="#20FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsFocused" Value="true">
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="border" Property="Background" Value="#10FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Hint text style -->
+        <Style x:Key="HintText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Opacity" Value="0.5"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+        </Style>
+
+        <!-- ComboBox item template for BoostMode -->
+        <DataTemplate x:Key="BoostModeItemTemplate">
+            <TextBlock Text="{Binding Converter={StaticResource BoostModeDisplayConverter}}"
+                       FontSize="13"/>
+        </DataTemplate>
+
+        <!-- Action button styles -->
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Background" Value="{StaticResource SectionBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource SectionBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#15FFFFFF"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#40FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#25FFFFFF"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource AccentDimBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#4060CDFF"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#A060CDFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#2560CDFF"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Red Reset Button Style -->
+        <Style x:Key="ResetButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="Background" Value="#20FF4B4B"/>
+            <Setter Property="BorderBrush" Value="#80FF4B4B"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#40FF4B4B"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#FFFF4B4B"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#60FF4B4B"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Green Apply Button Style -->
+        <Style x:Key="ApplyButtonStyle" TargetType="Button" BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="Background" Value="#2028A745"/>
+            <Setter Property="BorderBrush" Value="#8028A745"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#4028A745"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#FF28A745"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#6028A745"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Main content -->
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Hidden" Padding="24,20,24,8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="24"/>
+                    <ColumnDefinition Width="340"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ROW 0: Header & Power Source -->
+                <Grid Grid.Row="0" Grid.Column="0" Margin="0,0,0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="⚡" FontSize="28" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Clokr" FontSize="22" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding CpuName}" FontSize="12" Opacity="0.6"/>
+                    </StackPanel>
+                </Grid>
+
+                <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource SectionCard}" 
+                        Background="{StaticResource AccentDimBrush}"
+                        BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                        Margin="0,0,0,20" VerticalAlignment="Top">
+                    <TextBlock Text="{Binding IsOnAc, Converter={StaticResource PowerSourceConverter}}"
+                               FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                </Border>
+
+                <!-- ROW 1: Content -->
+                <!-- Left Column: Power Settings -->
+                <StackPanel Grid.Row="1" Grid.Column="0">
+
+
+
+                <!-- ═══ Class 2 ═══ -->
+                <Border Style="{StaticResource SectionCard}" Visibility="{Binding IsClass2Visible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="{Binding Class2Name}"/>
+
+                        <!-- AC -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="🔌 AC (Plugged In)"/>
+                             <TextBox Grid.Column="1" Style="{StaticResource FreqInput}" Tag="AcClass2Mhz"
+                                      Text="{Binding AcClass2Mhz, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Grid.Column="2" Text="MHz" Style="{StaticResource FieldLabel}" Margin="6,0,0,0"/>
+                            <TextBlock Grid.Column="3" Style="{StaticResource HintText}" Text="0 = no limit"/>
+                        </Grid>
+
+                        <!-- DC -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="🔋 DC (Battery)"/>
+                             <TextBox Grid.Column="1" Style="{StaticResource FreqInput}" Tag="DcClass2Mhz"
+                                      Text="{Binding DcClass2Mhz, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Grid.Column="2" Text="MHz" Style="{StaticResource FieldLabel}" Margin="6,0,0,0"/>
+                            <TextBlock Grid.Column="3" Style="{StaticResource HintText}" Text="0 = no limit"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══ Class 1 ═══ -->
+                <Border Style="{StaticResource SectionCard}" Visibility="{Binding IsClass1Visible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="{Binding Class1Name}"/>
+
+                        <!-- AC -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="🔌 AC (Plugged In)"/>
+                             <TextBox Grid.Column="1" Style="{StaticResource FreqInput}" Tag="AcClass1Mhz"
+                                      Text="{Binding AcClass1Mhz, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Grid.Column="2" Text="MHz" Style="{StaticResource FieldLabel}" Margin="6,0,0,0"/>
+                            <TextBlock Grid.Column="3" Style="{StaticResource HintText}" Text="0 = no limit"/>
+                        </Grid>
+
+                        <!-- DC -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="🔋 DC (Battery)"/>
+                             <TextBox Grid.Column="1" Style="{StaticResource FreqInput}" Tag="DcClass1Mhz"
+                                      Text="{Binding DcClass1Mhz, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Grid.Column="2" Text="MHz" Style="{StaticResource FieldLabel}" Margin="6,0,0,0"/>
+                            <TextBlock Grid.Column="3" Style="{StaticResource HintText}" Text="0 = no limit"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══ Class 0 ═══ -->
+                <Border Style="{StaticResource SectionCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="{Binding Class0Name}"/>
+
+                        <!-- AC -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="🔌 AC (Plugged In)"/>
+                             <TextBox Grid.Column="1" Style="{StaticResource FreqInput}" Tag="AcClass0Mhz"
+                                      Text="{Binding AcClass0Mhz, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Grid.Column="2" Text="MHz" Style="{StaticResource FieldLabel}" Margin="6,0,0,0"/>
+                            <TextBlock Grid.Column="3" Style="{StaticResource HintText}" Text="0 = no limit"/>
+                        </Grid>
+
+                        <!-- DC -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="🔋 DC (Battery)"/>
+                             <TextBox Grid.Column="1" Style="{StaticResource FreqInput}" Tag="DcClass0Mhz"
+                                      Text="{Binding DcClass0Mhz, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Grid.Column="2" Text="MHz" Style="{StaticResource FieldLabel}" Margin="6,0,0,0"/>
+                            <TextBlock Grid.Column="3" Style="{StaticResource HintText}" Text="0 = no limit"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                </StackPanel>
+
+                <!-- Right Column: Settings and Actions -->
+                <StackPanel Grid.Row="1" Grid.Column="2">
+                    
+                    <!-- ═══ Boost Mode ═══ -->
+                    <Border Style="{StaticResource SectionCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="⚡ Boost Mode"/>
+
+                            <!-- AC -->
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="🔌 AC (Plugged In)"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding BoostModes}"
+                                          SelectedItem="{Binding AcBoostMode}"
+                                          ItemTemplate="{StaticResource BoostModeItemTemplate}"
+                                          Height="32" FontSize="13"/>
+                            </Grid>
+
+                            <!-- DC -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="🔋 DC (Battery)"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding BoostModes}"
+                                          SelectedItem="{Binding DcBoostMode}"
+                                          ItemTemplate="{StaticResource BoostModeItemTemplate}"
+                                          Height="32" FontSize="13"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <!-- ═══ Settings ═══ -->
+                <Border Style="{StaticResource SectionCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="⚙️ Settings"/>
+                        <CheckBox Content="Apply settings on startup" IsChecked="{Binding ApplyOnStartup}" Margin="0,0,0,6" FontSize="13"/>
+                        <CheckBox Content="Auto-apply on power source change" IsChecked="{Binding AutoApplyOnPowerChange}" Margin="0,0,0,6" FontSize="13"/>
+                        <CheckBox Content="Disable Intel DTT (Prevent OS override)" IsChecked="{Binding DisableDtt}" Margin="0,0,0,6" FontSize="13" ToolTip="Disables Intel Dynamic Tuning devices and services to prevent Windows from resetting your limits."/>
+                        <CheckBox Content="Minimize to system tray on close" IsChecked="{Binding MinimizeToTray}" Margin="0,0,0,6" FontSize="13"/>
+                        <CheckBox Content="Start with Windows" IsChecked="{Binding StartWithWindows}" Margin="0,0,0,6" FontSize="13"/>
+                        <CheckBox Content="Start minimized" IsChecked="{Binding StartMinimized}" FontSize="13"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Action buttons -->
+                <Grid Margin="0,4,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0"
+                            Content="Reset"
+                            Style="{StaticResource ResetButtonStyle}"
+                            Command="{Binding ResetCommand}"/>
+
+                    <Button Grid.Column="2"
+                            Content="Apply"
+                            Style="{StaticResource ApplyButtonStyle}"
+                            Command="{Binding ApplySettingsCommand}"/>
+                </Grid>
+
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- Status bar -->
+        <Border Grid.Row="1" Padding="16,10"
+                BorderThickness="0,1,0,0" BorderBrush="{StaticResource SectionBorderBrush}"
+                Background="{StaticResource SectionBackgroundBrush}">
+            <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.8"/>
+        </Border>
+    </Grid>
+</Window>
