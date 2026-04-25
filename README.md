@@ -11,7 +11,7 @@ Clokr was originally developed as a tool to conveniently find the optimal CPU fr
 
 ## Download
 
-You can find the latest pre-compiled binaries in the **[Releases](https://github.com/hadoooooooouken/Clokr/releases)** section.
+You can find the latest pre-compiled binaries in the **[Releases](https://github.com/hadoooooouken/Clokr/releases)** section.
 
 ## Key Features
 
