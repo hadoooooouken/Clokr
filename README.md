@@ -35,7 +35,7 @@ Clokr is not a driver and does not perform direct overclocking via CPU registers
     *   `75b0ae3f-bce0-45a7-8c89-c9611c25e101` (PROCFREQMAX1)
     *   `75b0ae3f-bce0-45a7-8c89-c9611c25e102` (PROCFREQMAX2)
     *   `be337238-0d82-4146-a960-4f3749d470c7` (PERFBOOSTMODE)
-2.  **DTT Management**: To combat aggressive thermal throttling, the program uses `pnputil` to programmatically disable Dynamic Tuning devices in Device Manager and `sc` to stop and disable corresponding system services.
+2.  **DTT Management**: To combat aggressive thermal management and prevent the system from resetting custom frequency limits to **0** (unlimited) when running on **battery**, the program uses `pnputil` to programmatically disable Dynamic Tuning devices in Device Manager and `sc` to stop and disable corresponding system services.
 3.  **Registry**: To display hidden settings in the Windows interface, Clokr changes the `Attributes` value to `2` in the relevant registry keys under `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\...`.
 4.  **Topology Detection**: On startup, Clokr detects the processor model via WMI and determines the number of efficiency classes. It dynamically shifts the mapping of `PROCFREQMAX` (0, 1, 2) to match the hardware (e.g., ensuring P-Cores are correctly identified on both Meteor Lake and Alder Lake systems).
 
