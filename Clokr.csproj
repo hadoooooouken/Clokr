@@ -11,8 +11,9 @@
     <AssemblyName>Clokr</AssemblyName>
     <RootNamespace>Clokr</RootNamespace>
     <Description>CPU Frequency Manager for Hybrid Core Processors</Description>
-    <Company>Clokr</Company>
+    <Company>hadouken</Company>
     <Product>Clokr</Product>
+    <Copyright>Copyright (C) 2026 hadouken</Copyright>
     <Version>1.0.1</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
