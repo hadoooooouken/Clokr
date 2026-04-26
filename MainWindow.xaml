@@ -3,11 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:Clokr.Converters"
         xmlns:models="clr-namespace:Clokr.Models"
-        Title="Clokr - CPU Frequency Manager for Hybrid Core Processors"
-        Width="840" Height="680"
-        MinWidth="800" MinHeight="660"
+        Title="Clokr v1.0.1 - CPU Frequency Manager for Hybrid Core Processors"
+        Width="856" SizeToContent="Height"
+        MinWidth="820"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
         Closing="Window_Closing"
         StateChanged="Window_StateChanged">
 
@@ -34,7 +35,7 @@
         <!-- Section header style -->
         <Style x:Key="SectionHeader" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontWeight" Value="Normal"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
             <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
         </Style>
@@ -55,7 +56,7 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="16"/>
-            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontWeight" Value="Normal"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -83,7 +84,7 @@
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontWeight" Value="Normal"/>
             <Setter Property="MaxLength" Value="5"/>
             <Setter Property="Background" Value="#15FFFFFF"/>
             <Setter Property="BorderBrush" Value="#30FFFFFF"/>
@@ -159,7 +160,7 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontWeight" Value="Normal"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -267,16 +268,30 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        
+        <!-- Style for the Power Status plate that switches colors based on IsOnAc -->
+        <Style x:Key="PowerStatusBorderStyle" TargetType="Border" BasedOn="{StaticResource SectionCard}">
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="Margin" Value="0,0,0,20"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="{StaticResource AccentDimBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsOnAc}" Value="False">
+                    <Setter Property="Background" Value="#20FFCC66"/>
+                    <Setter Property="BorderBrush" Value="#FFCC66"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Main content -->
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Hidden" Padding="24,20,24,8">
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="20,20,20,21">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -284,7 +299,7 @@
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="24"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="340"/>
                 </Grid.ColumnDefinitions>
 
@@ -301,17 +316,15 @@
                     </StackPanel>
                 </Grid>
 
-                <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource SectionCard}" 
-                        Background="{StaticResource AccentDimBrush}"
-                        BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
-                        Margin="0,0,0,20" VerticalAlignment="Top">
+                <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource PowerStatusBorderStyle}">
                     <TextBlock Text="{Binding IsOnAc, Converter={StaticResource PowerSourceConverter}}"
-                               FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                               FontSize="15" FontWeight="Normal" HorizontalAlignment="Center"/>
                 </Border>
 
                 <!-- ROW 1: Content -->
                 <!-- Left Column: Power Settings -->
-                <StackPanel Grid.Row="1" Grid.Column="0">
+                <Grid Grid.Row="1" Grid.Column="0">
+                    <StackPanel VerticalAlignment="Top">
 
 
 
@@ -425,8 +438,16 @@
                         </Grid>
                     </StackPanel>
                 </Border>
+            </StackPanel>
 
-                </StackPanel>
+            <!-- Status Text fixed and centered relative to buttons -->
+            <Grid VerticalAlignment="Bottom" Height="48">
+                <TextBlock Text="{Binding StatusText}" 
+                           FontSize="12" Opacity="0.8" 
+                           Margin="4,0,0,0" 
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Grid>
 
                 <!-- Right Column: Settings and Actions -->
                 <StackPanel Grid.Row="1" Grid.Column="2">
@@ -447,7 +468,8 @@
                                           ItemsSource="{Binding BoostModes}"
                                           SelectedItem="{Binding AcBoostMode}"
                                           ItemTemplate="{StaticResource BoostModeItemTemplate}"
-                                          Height="32" FontSize="13"/>
+                                          Height="34" FontSize="13"
+                                          VerticalContentAlignment="Center"/>
                             </Grid>
 
                             <!-- DC -->
@@ -461,12 +483,13 @@
                                           ItemsSource="{Binding BoostModes}"
                                           SelectedItem="{Binding DcBoostMode}"
                                           ItemTemplate="{StaticResource BoostModeItemTemplate}"
-                                          Height="32" FontSize="13"/>
+                                          Height="34" FontSize="13"
+                                          VerticalContentAlignment="Center"/>
                             </Grid>
                         </StackPanel>
                     </Border>
                     <!-- ═══ Settings ═══ -->
-                <Border Style="{StaticResource SectionCard}">
+                <Border Style="{StaticResource SectionCard}" MinHeight="293">
                     <StackPanel>
                         <TextBlock Style="{StaticResource SectionHeader}" Text="⚙️ Settings"/>
                         <CheckBox Content="Apply settings on startup" IsChecked="{Binding ApplyOnStartup}" Margin="0,0,0,6" FontSize="13"/>
@@ -479,7 +502,7 @@
                 </Border>
 
                 <!-- Action buttons -->
-                <Grid Margin="0,4,0,8">
+                <Grid Margin="0,8,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="12"/>
@@ -501,11 +524,6 @@
             </Grid>
         </ScrollViewer>
 
-        <!-- Status bar -->
-        <Border Grid.Row="1" Padding="16,10"
-                BorderThickness="0,1,0,0" BorderBrush="{StaticResource SectionBorderBrush}"
-                Background="{StaticResource SectionBackgroundBrush}">
-            <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.8"/>
-        </Border>
+
     </Grid>
 </Window>
