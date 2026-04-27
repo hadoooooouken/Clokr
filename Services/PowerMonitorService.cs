@@ -9,7 +9,7 @@ namespace Clokr.Services;
 public class PowerMonitorService : IDisposable
 {
     private readonly System.Windows.Threading.DispatcherTimer _pollTimer;
-    private bool _lastIsOnAc;
+    private volatile bool _lastIsOnAc;
     private bool _disposed;
 
     /// <summary>Fires when power source changes. True = AC, False = Battery.</summary>

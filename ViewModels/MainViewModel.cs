@@ -169,29 +169,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
-    private void ReadCurrent()
-    {
-        try
-        {
-            var (ac, dc) = _powerCfgService.ReadCurrentSettings();
 
-            AcBoostMode = ac.BoostMode;
-            DcBoostMode = dc.BoostMode;
-            AcClass0Mhz = ac.Class0Mhz;
-            DcClass0Mhz = dc.Class0Mhz;
-            AcClass1Mhz = ac.Class1Mhz;
-            DcClass1Mhz = dc.Class1Mhz;
-            AcClass2Mhz = ac.Class2Mhz;
-            DcClass2Mhz = dc.Class2Mhz;
-
-            StatusText = "✅ Current settings loaded from system";
-        }
-        catch (Exception ex)
-        {
-            StatusText = $"❌ Error reading settings: {ex.Message}";
-        }
-    }
 
     [RelayCommand]
     private void SaveSettings()
