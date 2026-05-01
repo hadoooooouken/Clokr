@@ -405,7 +405,7 @@ public partial class MainViewModel : ObservableObject
             IsClass1Visible = true;
             Class2Name = "";
             Class1Name = "🏎️ P-Cores (Performance)";
-            Class0Name = "🌿 E-Cores (Efficiency)";
+            Class0Name = "🌿 E-Cores (Efficient)";
         }
         else
         {
