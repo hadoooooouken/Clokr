@@ -97,6 +97,7 @@ public partial class MainViewModel : ObservableObject
         Enum.GetValues<BoostMode>();
 
     private readonly DttManagementService _dttManagementService;
+    private readonly CpuTopologyService _cpuTopologyService;
 
     // ── Constructor ─────────────────────────────────────────
 
@@ -105,13 +106,15 @@ public partial class MainViewModel : ObservableObject
         PowerMonitorService powerMonitorService,
         SettingsService settingsService,
         AutoStartService autoStartService,
-        DttManagementService dttManagementService)
+        DttManagementService dttManagementService,
+        CpuTopologyService cpuTopologyService)
     {
         _powerCfgService = powerCfgService;
         _powerMonitorService = powerMonitorService;
         _settingsService = settingsService;
         _autoStartService = autoStartService;
         _dttManagementService = dttManagementService;
+        _cpuTopologyService = cpuTopologyService;
         
         _settings = settingsService.Load();
 
@@ -382,35 +385,31 @@ public partial class MainViewModel : ObservableObject
     private void UpdateTopology(string cpuName)
     {
         var lowerName = cpuName.ToLowerInvariant();
-        int classCount = 1;
+        
+        // Query the OS directly for the number of core classes
+        int classCount = _cpuTopologyService.GetCoreClassCount();
 
-        if (lowerName.Contains("intel"))
+        if (classCount == 3)
         {
-            if (lowerName.Contains("ultra") || lowerName.Contains("meteor"))
-            {
-                // Core Ultra / Meteor Lake -> 3 classes
-                classCount = 3;
-                IsClass2Visible = true;
-                IsClass1Visible = true;
-                Class2Name = "🏎️ P-Cores (Performance)";
-                Class1Name = "🌿 E-Cores (Efficient)";
-                Class0Name = "🍃 LPE-Cores (Low Power Efficient)";
-            }
-            else
-            {
-                // Older Intel Hybrid (Alder/Raptor Lake) -> 2 classes
-                classCount = 2;
-                IsClass2Visible = false;
-                IsClass1Visible = true;
-                Class2Name = "";
-                Class1Name = "🏎️ P-Cores (Performance)";
-                Class0Name = "🌿 E-Cores (Efficiency)";
-            }
+            // Core Ultra / Meteor Lake -> 3 classes
+            IsClass2Visible = true;
+            IsClass1Visible = true;
+            Class2Name = "🏎️ P-Cores (Performance)";
+            Class1Name = "🌿 E-Cores (Efficient)";
+            Class0Name = "🍃 LPE-Cores (Low Power Efficient)";
+        }
+        else if (classCount == 2)
+        {
+            // Hybrid (Alder/Raptor Lake, etc.) -> 2 classes
+            IsClass2Visible = false;
+            IsClass1Visible = true;
+            Class2Name = "";
+            Class1Name = "🏎️ P-Cores (Performance)";
+            Class0Name = "🌿 E-Cores (Efficiency)";
         }
         else
         {
-            // AMD or other -> 1 class
-            classCount = 1;
+            // Single class (Older Intel, AMD, etc.) -> 1 class
             IsClass2Visible = false;
             IsClass1Visible = false;
             Class2Name = "";

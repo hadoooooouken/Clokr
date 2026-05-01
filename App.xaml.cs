@@ -34,9 +34,10 @@ public partial class App : Application
         var settingsService = new SettingsService();
         var autoStartService = new AutoStartService();
         var dttManagementService = new DttManagementService();
+        var cpuTopologyService = new CpuTopologyService();
 
         // ── Create ViewModel ────────────────────────────────
-        _viewModel = new MainViewModel(powerCfgService, powerMonitorService, settingsService, autoStartService, dttManagementService);
+        _viewModel = new MainViewModel(powerCfgService, powerMonitorService, settingsService, autoStartService, dttManagementService, cpuTopologyService);
 
         // ── Apply settings on startup if enabled ────────────
         _viewModel.ApplySettingsOnStartup();
