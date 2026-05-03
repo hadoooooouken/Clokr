@@ -91,6 +91,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _cpuName = "Detecting...";
 
+    [ObservableProperty]
+    private string _cpuDetailsTooltip = "Fetching details...";
+
     // ── Available Boost Modes ───────────────────────────────
 
     public IReadOnlyList<BoostMode> BoostModes { get; } =
@@ -354,6 +357,8 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            var details = _cpuTopologyService.GetCpuDetails();
+            
             using var searcher = new ManagementObjectSearcher("SELECT Name FROM Win32_Processor");
             foreach (var obj in searcher.Get())
             {
@@ -364,6 +369,34 @@ public partial class MainViewModel : ObservableObject
                     {
                         CpuName = name;
                         UpdateTopology(name);
+                        
+                        // Format Tooltip
+                        var tooltip = $"CPU: {details.PhysicalCores} Cores / {details.LogicalProcessors} Threads";
+                        if (details.LPE_Cores > 0)
+                            tooltip += $"\nComposition: {details.P_Cores} Performance + {details.E_Cores} Efficient + {details.LPE_Cores} LP-Efficient Cores";
+                        else if (details.E_Cores > 0)
+                            tooltip += $"\nComposition: {details.P_Cores} Performance + {details.E_Cores} Efficient Cores";
+                        else
+                            tooltip += $"\nComposition: {details.P_Cores} Performance Cores";
+
+                        tooltip += $"\nBase Frequency: {details.BaseFrequencyGHz:0.00} GHz";
+
+                        if (details.L3CacheMB > 0)
+                            tooltip += $"\nL3 Cache: {details.L3CacheMB} MB";
+                        else if (details.L2CacheMB > 0)
+                            tooltip += $"\nL2 Cache: {details.L2CacheMB} MB";
+                        
+                        tooltip += "\n"; // Spacer
+
+                        if (!string.IsNullOrEmpty(details.BiosInfo))
+                            tooltip += $"\nBIOS: {details.BiosInfo}";
+                        
+                        tooltip += $"\nMotherboard: {details.Motherboard}";
+
+                        tooltip += "\n"; // Spacer
+                        
+                        tooltip += $"\nInstalled RAM: {details.RamInfo}";
+                        CpuDetailsTooltip = tooltip;
                         
                         // DEBUG: Uncomment one of these lines to force a specific UI layout for testing
                         // UpdateTopology("intel ultra"); // Forces 3 classes (P-Cores, E-Cores, LPE-Cores)
@@ -378,6 +411,7 @@ public partial class MainViewModel : ObservableObject
             System.Windows.Application.Current?.Dispatcher.Invoke(() =>
             {
                 CpuName = "Unknown CPU";
+                CpuDetailsTooltip = "Error detecting CPU details";
             });
         }
     }
