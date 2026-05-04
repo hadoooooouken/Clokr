@@ -130,8 +130,6 @@ public class CpuTopologyService
                     long endPtr = ptr.ToInt64() + len;
                     var classCounts = new Dictionary<byte, (int Physical, int Logical)>();
                     
-                    // Use long to avoid overflow and set to sum
-                    long l1Total = 0;
                     long l2Total = 0;
                     long l3Total = 0;
 
@@ -167,27 +165,20 @@ public class CpuTopologyService
                             var cachePtr = new IntPtr(currentPtr.ToInt64() + Marshal.OffsetOf<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>("Processor").ToInt64());
                             var cache = Marshal.PtrToStructure<CACHE_RELATIONSHIP>(cachePtr);
                             
-                            // Windows reports cache PER INSTANCE. L1 is per core, L2 is often per core or per cluster, L3 is per package.
-                            // However, we want the TOTAL or the advertised size.
-                            // Usually, L1 and L2 are summed if we want the "Total Cache" or just shown per core.
-                            // But marketing specs (like 24MB) refer to L3 usually, or a sum.
-                            // Let's collect L3 as absolute max, and others as sums if they are unique instances.
-                            if (cache.Level == 1) l1Total += cache.CacheSize;
-                            else if (cache.Level == 2) l2Total += cache.CacheSize;
-                            else if (cache.Level == 3) l3Total = Math.Max(l3Total, cache.CacheSize);
+                            // Windows reports cache PER INSTANCE (per core, per cluster, or per CCD).
+                            // Sum all instances to get totals (important for AMD multi-CCD with separate L3 per CCD).
+                            if (cache.Level == 2) l2Total += cache.CacheSize;
+                            else if (cache.Level == 3) l3Total += cache.CacheSize;
                         }
                         currentPtr = new IntPtr(currentPtr.ToInt64() + structInfo.Size);
                     }
 
-                    info.L1CacheKB = (int)(l1Total / 1024);
-                    // For L2, on modern CPUs it's often shared between E-cores, so summing might be tricky.
-                    // But usually L2 is reported as a total in simple tools if it's "total L2".
-                    // Let's use a heuristic: if L3 exists, it's the main "Cache" people look for.
                     info.L2CacheMB = (int)(l2Total / (1024 * 1024));
                     info.L3CacheMB = (int)(l3Total / (1024 * 1024));
 
                     // Map classes to P/E/LPE
                     int classCount = classCounts.Count;
+                    info.CoreClassCount = Math.Max(1, classCount);
                     var sortedClasses = new List<byte>(classCounts.Keys);
                     sortedClasses.Sort(); // Usually 0, 1, 2
 

@@ -368,7 +368,7 @@ public partial class MainViewModel : ObservableObject
                     System.Windows.Application.Current?.Dispatcher.Invoke(() =>
                     {
                         CpuName = name;
-                        UpdateTopology(name);
+                        UpdateTopology(details.CoreClassCount);
                         
                         // Format Tooltip
                         var tooltip = $"CPU: {details.PhysicalCores} Cores / {details.LogicalProcessors} Threads";
@@ -416,12 +416,8 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private void UpdateTopology(string cpuName)
+    private void UpdateTopology(int classCount)
     {
-        var lowerName = cpuName.ToLowerInvariant();
-        
-        // Query the OS directly for the number of core classes
-        int classCount = _cpuTopologyService.GetCoreClassCount();
 
         if (classCount == 3)
         {

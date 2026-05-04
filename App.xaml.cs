@@ -169,6 +169,13 @@ public partial class App : Application
             (32 - size.Width) / 2,
             (32 - size.Height) / 2);
 
-        return Icon.FromHandle(bitmap.GetHicon());
+        var hIcon = bitmap.GetHicon();
+        var icon = Icon.FromHandle(hIcon);
+        var clonedIcon = (Icon)icon.Clone();
+        DestroyIcon(hIcon);
+        return clonedIcon;
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr handle);
 }

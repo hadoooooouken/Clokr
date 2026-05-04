@@ -165,7 +165,11 @@ public partial class PowerCfgService
         process.Start();
         var output = process.StandardOutput.ReadToEnd();
         var error = process.StandardError.ReadToEnd();
-        process.WaitForExit(5000);
+        if (!process.WaitForExit(5000))
+        {
+            try { process.Kill(); } catch { }
+            throw new InvalidOperationException($"powercfg {arguments} timed out");
+        }
 
         if (!string.IsNullOrWhiteSpace(error))
             throw new InvalidOperationException($"powercfg {arguments} failed: {error}");
