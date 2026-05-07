@@ -1,7 +1,9 @@
+using System;
 using System.Diagnostics;
 using System.IO;
 
-namespace Clokr.Services;
+namespace Clokr.Services
+{
 
 /// <summary>
 /// Manages Windows auto-start via Task Scheduler to support admin privileges.
@@ -40,7 +42,7 @@ public class AutoStartService
     /// <summary>Enables auto-start by creating a scheduled task with highest privileges.</summary>
     public void Enable()
     {
-        var exePath = Environment.ProcessPath;
+        var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
         if (string.IsNullOrEmpty(exePath)) return;
 
         var escapedExePath = System.Security.SecurityElement.Escape(exePath);
@@ -149,4 +151,5 @@ public class AutoStartService
         else
             Disable();
     }
+}
 }

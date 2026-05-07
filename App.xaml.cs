@@ -1,11 +1,14 @@
+using System;
 using System.Drawing;
 using System.Windows;
 using Application = System.Windows.Application;
 using Clokr.Services;
 using Clokr.ViewModels;
+using System.Threading;
 using WinForms = System.Windows.Forms;
 
-namespace Clokr;
+namespace Clokr
+{
 
 public partial class App : Application
 {
@@ -145,7 +148,7 @@ public partial class App : Application
     {
         try
         {
-            var exePath = Environment.ProcessPath;
+            var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
             if (!string.IsNullOrEmpty(exePath))
             {
                 var appIcon = Icon.ExtractAssociatedIcon(exePath);
@@ -178,4 +181,5 @@ public partial class App : Application
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool DestroyIcon(IntPtr handle);
+}
 }

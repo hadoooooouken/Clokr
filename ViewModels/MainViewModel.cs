@@ -1,10 +1,15 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Management;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Clokr.Models;
 using Clokr.Services;
 
-namespace Clokr.ViewModels;
+namespace Clokr.ViewModels
+{
 
 public partial class MainViewModel : ObservableObject
 {
@@ -97,7 +102,7 @@ public partial class MainViewModel : ObservableObject
     // ── Available Boost Modes ───────────────────────────────
 
     public IReadOnlyList<BoostMode> BoostModes { get; } =
-        Enum.GetValues<BoostMode>();
+        ((BoostMode[])Enum.GetValues(typeof(BoostMode))).ToList();
 
     private readonly DttManagementService _dttManagementService;
     private readonly CpuTopologyService _cpuTopologyService;
@@ -367,7 +372,7 @@ public partial class MainViewModel : ObservableObject
                 {
                     System.Windows.Application.Current?.Dispatcher.Invoke(() =>
                     {
-                        CpuName = name;
+                        CpuName = name!;
                         UpdateTopology(details.CoreClassCount);
                         
                         // Format Tooltip
@@ -450,4 +455,5 @@ public partial class MainViewModel : ObservableObject
         // Unhide only the settings that apply to this CPU
         _powerCfgService.UnhideSettings(classCount);
     }
+}
 }

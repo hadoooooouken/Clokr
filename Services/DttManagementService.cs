@@ -2,7 +2,8 @@ using System;
 using System.Diagnostics;
 using System.Management;
 
-namespace Clokr.Services;
+namespace Clokr.Services
+{
 
 public class DttManagementService
 {
@@ -73,4 +74,5 @@ public class DttManagementService
         }
         catch { }
     }
+}
 }

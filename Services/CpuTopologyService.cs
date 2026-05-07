@@ -4,7 +4,8 @@ using System.Management;
 using System.Runtime.InteropServices;
 using Clokr.Models;
 
-namespace Clokr.Services;
+namespace Clokr.Services
+{
 
 public class CpuTopologyService
 {
@@ -283,4 +284,5 @@ public class CpuTopologyService
         }
         return count;
     }
+}
 }

@@ -1,10 +1,12 @@
+using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using Clokr.Models;
 
-namespace Clokr.Services;
+namespace Clokr.Services
+{
 
 /// <summary>
 /// Wraps powercfg.exe commands to read and write processor power settings.
@@ -13,7 +15,7 @@ namespace Clokr.Services;
 /// PROCFREQMAX1 (75b0ae3f-bce0-45a7-8c89-c9611c25e101) - P-core max frequency (MHz)
 /// PERFBOOSTMODE (be337238-0d82-4146-a960-4f3749d470c7) - Boost mode (0-6)
 /// </summary>
-public partial class PowerCfgService
+public class PowerCfgService
 {
     private const string SubProcessor = "SUB_PROCESSOR";
     private const string ProcFreqMax = "PROCFREQMAX";    // Class 0
@@ -22,11 +24,8 @@ public partial class PowerCfgService
     private const string PerfBoostMode = "PERFBOOSTMODE";
 
     // Regex to parse "Current AC/DC Power Setting Index: 0x00000002"
-    [GeneratedRegex(@"Current\s+AC\s+Power\s+Setting\s+Index:\s+0x([0-9a-fA-F]+)", RegexOptions.IgnoreCase)]
-    private static partial Regex AcValueRegex();
-
-    [GeneratedRegex(@"Current\s+DC\s+Power\s+Setting\s+Index:\s+0x([0-9a-fA-F]+)", RegexOptions.IgnoreCase)]
-    private static partial Regex DcValueRegex();
+    private static readonly Regex AcValueRegex = new Regex(@"Current\s+AC\s+Power\s+Setting\s+Index:\s+0x([0-9a-fA-F]+)", RegexOptions.IgnoreCase);
+    private static readonly Regex DcValueRegex = new Regex(@"Current\s+DC\s+Power\s+Setting\s+Index:\s+0x([0-9a-fA-F]+)", RegexOptions.IgnoreCase);
 
     /// <summary>
     /// Reads current power settings from the active power scheme.
@@ -138,11 +137,11 @@ public partial class PowerCfgService
     {
         int acValue = 0, dcValue = 0;
 
-        var acMatch = AcValueRegex().Match(output);
+        var acMatch = AcValueRegex.Match(output);
         if (acMatch.Success)
             acValue = int.Parse(acMatch.Groups[1].Value, NumberStyles.HexNumber);
 
-        var dcMatch = DcValueRegex().Match(output);
+        var dcMatch = DcValueRegex.Match(output);
         if (dcMatch.Success)
             dcValue = int.Parse(dcMatch.Groups[1].Value, NumberStyles.HexNumber);
 
@@ -176,4 +175,5 @@ public partial class PowerCfgService
 
         return output;
     }
+}
 }
