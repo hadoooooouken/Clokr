@@ -228,8 +228,9 @@
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,0,0,14"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Padding" Value="8,0,0,0"/>
+            <Setter Property="Padding" Value="14,0,0,0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
@@ -345,6 +346,27 @@
                                 <Setter TargetName="border" Property="Background" Value="{StaticResource AccentDimBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- Modern ToolTip Style -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="#252525"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"/>
+                        </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -549,12 +571,12 @@
                     <Border Style="{StaticResource SectionCard}" MinHeight="293">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionHeader}" Text="⚙️ Settings"/>
-                            <CheckBox Content="Apply settings on startup" IsChecked="{Binding ApplyOnStartup}" Margin="0,0,0,6" FontSize="13"/>
-                            <CheckBox Content="Auto-apply on power source change" IsChecked="{Binding AutoApplyOnPowerChange}" Margin="0,0,0,6" FontSize="13"/>
-                            <CheckBox Content="Disable Intel DTT (Prevent OS override)" IsChecked="{Binding DisableDtt}" Margin="0,0,0,6" FontSize="13" ToolTip="Disables Intel Dynamic Tuning devices and services to prevent Windows from resetting your limits."/>
-                            <CheckBox Content="Minimize to system tray on close" IsChecked="{Binding MinimizeToTray}" Margin="0,0,0,6" FontSize="13"/>
-                            <CheckBox Content="Start with Windows" IsChecked="{Binding StartWithWindows}" Margin="0,0,0,6" FontSize="13"/>
-                            <CheckBox Content="Start minimized" IsChecked="{Binding StartMinimized}" FontSize="13"/>
+                            <CheckBox Content="Apply settings on startup" IsChecked="{Binding ApplyOnStartup}"/>
+                            <CheckBox Content="Auto-apply on power source change" IsChecked="{Binding AutoApplyOnPowerChange}"/>
+                            <CheckBox Content="Disable Intel DTT (Prevent OS override)" IsChecked="{Binding DisableDtt}" ToolTip="Disables Intel Dynamic Tuning devices and services to prevent Windows from resetting your limits."/>
+                            <CheckBox Content="Minimize to system tray on close" IsChecked="{Binding MinimizeToTray}"/>
+                            <CheckBox Content="Start with Windows" IsChecked="{Binding StartWithWindows}"/>
+                            <CheckBox Content="Start minimized" IsChecked="{Binding StartMinimized}"/>
                         </StackPanel>
                     </Border>
 

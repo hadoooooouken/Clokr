@@ -31,4 +31,10 @@
     </PackageReference>
   </ItemGroup>
 
+  <Target Name="CleanupPublishFolder" AfterTargets="Publish">
+    <ItemGroup>
+      <FilesToDelete Include="$(PublishDir)\*.dll" />
+    </ItemGroup>
+    <Delete Files="@(FilesToDelete)" />
+  </Target>
 </Project>
