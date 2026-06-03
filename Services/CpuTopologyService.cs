@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics.X86;
 using Clokr.Models;
 
 namespace Clokr.Services;
@@ -61,23 +64,55 @@ public class CpuTopologyService
         public GROUP_AFFINITY GroupMask;
     }
 
+    private struct LogicalProcessorInfo
+    {
+        public byte EfficiencyClass;
+        public int CoreId;
+    }
+
+    /// <summary>
+    /// Combines OS scheduling class with CPUID hardware info to uniquely identify core classes.
+    /// Sorts descending: P-cores first, then regular E-cores, then LP E-cores.
+    /// </summary>
+    private record struct CompositeCoreKey(byte EfficiencyClass, byte CoreType, int NativeModelId) : IComparable<CompositeCoreKey>
+    {
+        public int CompareTo(CompositeCoreKey other)
+        {
+            // 1. Descending CoreType (0x40 = P-core, 0x20 = E-core)
+            int c = other.CoreType.CompareTo(CoreType);
+            if (c != 0) return c;
+
+            // 2. Descending EfficiencyClass (Windows scheduling priority)
+            c = other.EfficiencyClass.CompareTo(EfficiencyClass);
+            if (c != 0) return c;
+
+            // 3. Descending NativeModelId (higher represents newer/stronger architectures, e.g. Skymont 3 > Crestmont 2)
+            return other.NativeModelId.CompareTo(NativeModelId);
+        }
+    }
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetLogicalProcessorInformationEx(
         LOGICAL_PROCESSOR_RELATIONSHIP RelationshipType,
         IntPtr Buffer,
         ref uint ReturnedLength);
 
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentThread();
+
+    [DllImport("kernel32.dll")]
+    private static extern UIntPtr SetThreadAffinityMask(IntPtr hThread, UIntPtr dwThreadAffinityMask);
+
     /// <summary>
-    /// Detects the number of unique CPU core efficiency classes.
-    /// Returns 1 for standard CPUs, 2 for hybrid (e.g. Alder/Raptor Lake), 3 for 3-tier hybrid (e.g. Meteor Lake).
+    /// Returns unique physical core IDs and their scheduler efficiency classes.
     /// </summary>
-    public int GetCoreClassCount()
+    private Dictionary<int, LogicalProcessorInfo> GetLogicalProcessorTopology()
     {
+        var result = new Dictionary<int, LogicalProcessorInfo>();
         uint len = 0;
         GetLogicalProcessorInformationEx(LOGICAL_PROCESSOR_RELATIONSHIP.RelationProcessorCore, IntPtr.Zero, ref len);
-        
-        if (len == 0) return 1;
-        
+        if (len == 0) return result;
+
         IntPtr ptr = Marshal.AllocHGlobal((int)len);
         try
         {
@@ -85,38 +120,292 @@ public class CpuTopologyService
             {
                 IntPtr currentPtr = ptr;
                 long endPtr = ptr.ToInt64() + len;
-                var classes = new HashSet<byte>();
-                
+                int coreId = 0;
+
                 while (currentPtr.ToInt64() < endPtr)
                 {
                     var info = Marshal.PtrToStructure<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(currentPtr);
                     if (info.Relationship == LOGICAL_PROCESSOR_RELATIONSHIP.RelationProcessorCore)
                     {
-                        classes.Add(info.Processor.EfficiencyClass);
+                        byte effClass = info.Processor.EfficiencyClass;
+                        IntPtr maskPtr = new IntPtr(currentPtr.ToInt64() + Marshal.OffsetOf<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>("Processor").ToInt64() + Marshal.OffsetOf<PROCESSOR_RELATIONSHIP>("GroupMask").ToInt64());
+                        
+                        for (int i = 0; i < info.Processor.GroupCount; i++)
+                        {
+                            var affinity = Marshal.PtrToStructure<GROUP_AFFINITY>(new IntPtr(maskPtr.ToInt64() + i * Marshal.SizeOf<GROUP_AFFINITY>()));
+                            ulong mask = (ulong)affinity.Mask;
+                            for (int bit = 0; bit < 64; bit++)
+                            {
+                                if (((mask >> bit) & 1) == 1)
+                                {
+                                    int logicalIndex = affinity.Group * 64 + bit;
+                                    result[logicalIndex] = new LogicalProcessorInfo 
+                                    { 
+                                        EfficiencyClass = effClass, 
+                                        CoreId = coreId 
+                                    };
+                                }
+                            }
+                        }
+                        coreId++;
                     }
                     currentPtr = new IntPtr(currentPtr.ToInt64() + info.Size);
                 }
-                
-                return Math.Max(1, classes.Count);
             }
         }
-        catch
-        {
-            // Fallback
-        }
+        catch {}
         finally
         {
             Marshal.FreeHGlobal(ptr);
         }
+        return result;
+    }
 
-        return 1;
+    /// <summary>
+    /// Groups logical processors into distinct core classes using OS topology + CPUID 0x1A + CPUID 0x1F.
+    /// On CPUs where CPUID 0x1A and Windows EfficiencyClass cannot distinguish LP E-cores from regular
+    /// E-cores (e.g. Arrow Lake-U), uses CPUID 0x1F module/tile topology to detect the split.
+    /// </summary>
+    private Dictionary<CompositeCoreKey, List<int>> DetectCoreGroups(Dictionary<int, LogicalProcessorInfo> topology)
+    {
+        var groups = new Dictionary<CompositeCoreKey, List<int>>();
+        int logicalProcessorCount = Environment.ProcessorCount;
+
+        bool hasCpuIdSupport = X86Base.IsSupported;
+        bool isHybrid = false;
+        int maxLeaf = 0;
+
+        if (hasCpuIdSupport)
+        {
+            try
+            {
+                var leaf0 = X86Base.CpuId(0, 0);
+                maxLeaf = leaf0.Eax;
+                var leaf7 = X86Base.CpuId(7, 0);
+                isHybrid = ((leaf7.Edx >> 15) & 1) == 1;
+            }
+            catch { hasCpuIdSupport = false; }
+        }
+
+        bool hasLeaf1F = hasCpuIdSupport && maxLeaf >= 0x1F;
+
+        IntPtr hThread = GetCurrentThread();
+
+        // Per-LP module group ID from CPUID 0x1F, used for LP E-core splitting
+        var lpModuleIds = new Dictionary<int, int>();
+
+        for (int i = 0; i < logicalProcessorCount; i++)
+        {
+            byte coreType = 0;
+            int nativeModelId = 0;
+            byte effClass = 0;
+            int moduleGroupId = 0;
+
+            if (topology.TryGetValue(i, out var topInfo))
+            {
+                effClass = topInfo.EfficiencyClass;
+            }
+
+            if (hasCpuIdSupport && isHybrid)
+            {
+                UIntPtr mask = (UIntPtr)(1UL << i);
+                UIntPtr prevMask = SetThreadAffinityMask(hThread, mask);
+                if (prevMask != UIntPtr.Zero)
+                {
+                    try
+                    {
+                        Thread.Sleep(1);
+
+                        // CPUID 0x1A: Core type and native model identification
+                        var result1A = X86Base.CpuId(0x1A, 0);
+                        coreType = (byte)((uint)result1A.Eax >> 24);
+                        nativeModelId = result1A.Eax & 0x00FFFFFF;
+
+                        // CPUID 0x1F: V2 Extended Topology Enumeration
+                        // Enumerates topology levels (SMT→Core→Module→Tile→Die).
+                        // The Core-level shift tells us how many x2APIC ID bits encode
+                        // sub-core (SMT) + core-within-module. Shifting right by this
+                        // value gives the module/tile group ID.
+                        if (hasLeaf1F)
+                        {
+                            int coreShift = 0;
+                            int x2apicId = 0;
+                            bool foundCoreLevel = false;
+
+                            for (int subleaf = 0; subleaf < 16; subleaf++)
+                            {
+                                var r = X86Base.CpuId(0x1F, subleaf);
+                                int levelType = (r.Ecx >> 8) & 0xFF;
+                                x2apicId = r.Edx;
+
+                                if (levelType == 0) break;
+
+                                if (levelType == 2) // Core level
+                                {
+                                    coreShift = r.Eax & 0x1F;
+                                    foundCoreLevel = true;
+                                }
+                            }
+
+                            if (foundCoreLevel && coreShift > 0)
+                            {
+                                moduleGroupId = x2apicId >> coreShift;
+                            }
+                        }
+                    }
+                    catch {}
+                    finally
+                    {
+                        SetThreadAffinityMask(hThread, prevMask);
+                    }
+                }
+            }
+
+            lpModuleIds[i] = moduleGroupId;
+
+            var key = new CompositeCoreKey(effClass, coreType, nativeModelId);
+            if (!groups.ContainsKey(key))
+                groups[key] = new List<int>();
+            groups[key].Add(i);
+        }
+
+        // Post-processing: detect LP E-cores by tile boundary analysis.
+        // On Arrow Lake-U, Windows EfficiencyClass and CPUID 0x1A return identical values
+        // for Skymont (regular E) and Crestmont (LP E) cores. But they reside on different
+        // physical tiles: regular E-cores on the compute tile alongside P-cores, LP E-cores
+        // on the separate SoC tile. CPUID 0x1F module IDs reflect this: compute tile modules
+        // have contiguous IDs (e.g. 0,1,2,3) while SoC tile modules are isolated (e.g. 8).
+        //
+        // Algorithm: flood-fill from P-core module IDs, expanding to adjacent (±1) E-core
+        // modules to determine the compute tile boundary. E-core modules NOT reachable by
+        // this expansion are on the SoC tile (LP E-cores).
+        if (isHybrid && hasLeaf1F)
+        {
+            // Collect P-core module IDs as compute tile anchor points
+            var pCoreModuleIds = new HashSet<int>();
+            foreach (var kvp in groups)
+            {
+                if (kvp.Key.CoreType == 0x40) // Intel Core (P-core)
+                {
+                    foreach (var lp in kvp.Value)
+                        pCoreModuleIds.Add(lpModuleIds[lp]);
+                }
+            }
+
+            if (pCoreModuleIds.Count > 0)
+            {
+                var eCoreKeys = groups.Keys.Where(k => k.CoreType == 0x20).ToList();
+
+                foreach (var originalKey in eCoreKeys)
+                {
+                    var lps = groups[originalKey];
+                    var eCoreModuleIds = lps.Select(lp => lpModuleIds[lp]).Distinct().ToHashSet();
+
+                    // Flood-fill: start with P-core modules, expand to include any E-core
+                    // module whose ID is within ±1 of an already-included module
+                    var computeTileModules = new HashSet<int>(pCoreModuleIds);
+                    bool expanded = true;
+                    while (expanded)
+                    {
+                        expanded = false;
+                        foreach (var emod in eCoreModuleIds)
+                        {
+                            if (computeTileModules.Contains(emod)) continue;
+                            if (computeTileModules.Any(ct => Math.Abs(emod - ct) <= 1))
+                            {
+                                computeTileModules.Add(emod);
+                                expanded = true;
+                            }
+                        }
+                    }
+
+                    // Split: compute tile = regular E-cores, everything else = LP E-cores
+                    var computeTileLPs = lps.Where(lp => computeTileModules.Contains(lpModuleIds[lp])).ToList();
+                    var socTileLPs = lps.Where(lp => !computeTileModules.Contains(lpModuleIds[lp])).ToList();
+
+                    if (socTileLPs.Count > 0 && computeTileLPs.Count > 0)
+                    {
+                        // Regular E-cores keep the original key
+                        groups[originalKey] = computeTileLPs;
+
+                        // LP E-cores get a new key with decremented NativeModelId (sorts after regular E in descending order)
+                        var lpKey = new CompositeCoreKey(originalKey.EfficiencyClass, originalKey.CoreType, originalKey.NativeModelId - 1);
+                        groups[lpKey] = socTileLPs;
+                    }
+                }
+            }
+        }
+
+        return groups;
+    }
+
+    /// <summary>
+    /// Detects the number of unique CPU core efficiency classes.
+    /// Returns 1 for standard CPUs, 2 for hybrid (e.g. Alder/Raptor Lake), 3 for 3-tier hybrid (e.g. Arrow Lake / Meteor Lake).
+    /// </summary>
+    public int GetCoreClassCount()
+    {
+        try
+        {
+            var topology = GetLogicalProcessorTopology();
+            var groups = DetectCoreGroups(topology);
+            return Math.Max(1, groups.Count);
+        }
+        catch
+        {
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Counts unique physical cores in a group of logical processor indices.
+    /// </summary>
+    private int CountPhysicalCores(List<int> logicalProcessors, Dictionary<int, LogicalProcessorInfo> topology)
+    {
+        return logicalProcessors
+            .Select(lp => topology.TryGetValue(lp, out var t) ? t.CoreId : -1)
+            .Where(id => id != -1)
+            .Distinct()
+            .Count();
     }
 
     public CpuInfo GetCpuDetails()
     {
         var info = new CpuInfo();
+
+        var topology = GetLogicalProcessorTopology();
+        var groups = DetectCoreGroups(topology);
+
+        info.LogicalProcessors = Environment.ProcessorCount;
+        info.PhysicalCores = topology.Values.Select(t => t.CoreId).Distinct().Count();
+        if (info.PhysicalCores == 0)
+        {
+            info.PhysicalCores = info.LogicalProcessors; // Fallback
+        }
+
+        var sortedKeys = groups.Keys.ToList();
+        sortedKeys.Sort(); // Sort descending (P -> E -> LPE)
+
+        info.CoreClassCount = Math.Max(1, sortedKeys.Count);
+
+        if (info.CoreClassCount == 3)
+        {
+            info.P_Cores = CountPhysicalCores(groups[sortedKeys[0]], topology);
+            info.E_Cores = CountPhysicalCores(groups[sortedKeys[1]], topology);
+            info.LPE_Cores = CountPhysicalCores(groups[sortedKeys[2]], topology);
+        }
+        else if (info.CoreClassCount == 2)
+        {
+            info.P_Cores = CountPhysicalCores(groups[sortedKeys[0]], topology);
+            info.E_Cores = CountPhysicalCores(groups[sortedKeys[1]], topology);
+        }
+        else
+        {
+            info.P_Cores = info.PhysicalCores;
+        }
+
         uint len = 0;
-        // Use RelationAll to get cores, cache, and everything else in one buffer
+        // Use RelationAll to get cache information in one buffer
         GetLogicalProcessorInformationEx(LOGICAL_PROCESSOR_RELATIONSHIP.RelationAll, IntPtr.Zero, ref len);
 
         if (len > 0)
@@ -128,45 +417,16 @@ public class CpuTopologyService
                 {
                     IntPtr currentPtr = ptr;
                     long endPtr = ptr.ToInt64() + len;
-                    var classCounts = new Dictionary<byte, (int Physical, int Logical)>();
-                    
                     long l2Total = 0;
                     long l3Total = 0;
 
                     while (currentPtr.ToInt64() < endPtr)
                     {
                         var structInfo = Marshal.PtrToStructure<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(currentPtr);
-                        
-                        if (structInfo.Relationship == LOGICAL_PROCESSOR_RELATIONSHIP.RelationProcessorCore)
+                        if (structInfo.Relationship == LOGICAL_PROCESSOR_RELATIONSHIP.RelationCache)
                         {
-                            byte effClass = structInfo.Processor.EfficiencyClass;
-                            if (!classCounts.ContainsKey(effClass))
-                                classCounts[effClass] = (0, 0);
-
-                            int logicalCount = 0;
-                            IntPtr maskPtr = new IntPtr(currentPtr.ToInt64() + Marshal.OffsetOf<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>("Processor").ToInt64() + Marshal.OffsetOf<PROCESSOR_RELATIONSHIP>("GroupMask").ToInt64());
-                            
-                            for (int i = 0; i < structInfo.Processor.GroupCount; i++)
-                            {
-                                var affinity = Marshal.PtrToStructure<GROUP_AFFINITY>(new IntPtr(maskPtr.ToInt64() + i * Marshal.SizeOf<GROUP_AFFINITY>()));
-                                logicalCount += CountSetBits(affinity.Mask);
-                            }
-
-                            var current = classCounts[effClass];
-                            classCounts[effClass] = (current.Physical + 1, current.Logical + logicalCount);
-                            
-                            info.PhysicalCores++;
-                            info.LogicalProcessors += logicalCount;
-                        }
-                        else if (structInfo.Relationship == LOGICAL_PROCESSOR_RELATIONSHIP.RelationCache)
-                        {
-                            // Map Cache relationship
-                            // Since the union starts at the same offset as Processor
                             var cachePtr = new IntPtr(currentPtr.ToInt64() + Marshal.OffsetOf<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>("Processor").ToInt64());
                             var cache = Marshal.PtrToStructure<CACHE_RELATIONSHIP>(cachePtr);
-                            
-                            // Windows reports cache PER INSTANCE (per core, per cluster, or per CCD).
-                            // Sum all instances to get totals (important for AMD multi-CCD with separate L3 per CCD).
                             if (cache.Level == 2) l2Total += cache.CacheSize;
                             else if (cache.Level == 3) l3Total += cache.CacheSize;
                         }
@@ -175,33 +435,9 @@ public class CpuTopologyService
 
                     info.L2CacheMB = (int)(l2Total / (1024 * 1024));
                     info.L3CacheMB = (int)(l3Total / (1024 * 1024));
-
-                    // Map classes to P/E/LPE
-                    int classCount = classCounts.Count;
-                    info.CoreClassCount = Math.Max(1, classCount);
-                    var sortedClasses = new List<byte>(classCounts.Keys);
-                    sortedClasses.Sort(); // Usually 0, 1, 2
-
-                    if (classCount == 3)
-                    {
-                        // 0: LPE, 1: E, 2: P
-                        info.LPE_Cores = classCounts[sortedClasses[0]].Physical;
-                        info.E_Cores = classCounts[sortedClasses[1]].Physical;
-                        info.P_Cores = classCounts[sortedClasses[2]].Physical;
-                    }
-                    else if (classCount == 2)
-                    {
-                        // 0: E, 1: P
-                        info.E_Cores = classCounts[sortedClasses[0]].Physical;
-                        info.P_Cores = classCounts[sortedClasses[1]].Physical;
-                    }
-                    else if (classCount == 1)
-                    {
-                        info.P_Cores = classCounts[sortedClasses[0]].Physical;
-                    }
                 }
             }
-            catch { }
+            catch {}
             finally { Marshal.FreeHGlobal(ptr); }
         }
 
@@ -270,17 +506,5 @@ public class CpuTopologyService
         catch { }
 
         return info;
-    }
-
-    private int CountSetBits(UIntPtr mask)
-    {
-        ulong v = (ulong)mask;
-        int count = 0;
-        while (v > 0)
-        {
-            v &= (v - 1);
-            count++;
-        }
-        return count;
     }
 }
